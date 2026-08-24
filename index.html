@@ -166,6 +166,19 @@ header h1{margin:2px 0 0;font-size:28px;font-weight:800;
 .stat span{display:block;margin-top:3px}
 .nota{color:var(--text-muted);font-size:11px;line-height:1.5;margin-top:4px}
 
+/* ajustes: constantes editables */
+.field{padding:12px 0;border-top:1px solid var(--border-hairline)}
+.field:first-child{border-top:0;padding-top:0}
+.field>span:first-child{font-size:13px;font-weight:700;color:var(--text-strong)}
+.fieldrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  font-size:14px;color:var(--text-muted);margin-top:8px}
+.fieldrow input{width:64px;height:44px;border:1px solid var(--border-hairline);
+  border-radius:var(--radius-sm);background:var(--surface-sunken);
+  color:var(--text-strong);font:inherit;font-weight:700;text-align:center}
+#guardarConfig{width:100%;height:44px;margin-top:14px;border-radius:var(--radius-pill);
+  background:var(--brand-zyn);color:#fff;font-weight:700}
+#guardarConfig:active{background:var(--cyan-600)}
+
 /* tab bar */
 #tabs{position:fixed;left:0;right:0;bottom:0;z-index:10;
   display:grid;grid-auto-flow:column;grid-auto-columns:1fr;align-items:center;
@@ -271,10 +284,44 @@ sb.auth.onAuthStateChange((_, session) => {
 
 /* ───── datos ───── */
 async function load() {
-  const { data, error } = await sb.from('nicotine_log')
-    .select('id,email,brand,mg,at').order('at', { ascending: false }).limit(5000);
-  if (error) return fail(error);
-  rows = data; clearErr(); render();
+  const [log, config] = await Promise.all([
+    sb.from('nicotine_log').select('id,email,brand,mg,at').order('at', { ascending: false }).limit(5000),
+    sb.from('app_config').select('*').eq('id', 1).single()
+  ]);
+  if (log.error) return fail(log.error);
+  rows = log.data;
+  // si config falla (offline, RLS raro) seguimos con los defaults locales,
+  // total la app funciona igual — no es motivo para bloquear el login
+  if (config.data) {
+    Object.assign(PRECIO, { cada: config.data.precio_cada, pesos: config.data.precio_pesos });
+    Object.assign(CIG, { absorcion: config.data.cig_absorcion, porPucho: config.data.cig_por_pucho });
+  }
+  clearErr(); render();
+}
+
+async function guardarConfig() {
+  clearErr();
+  const cada = +$('cfgCada').value, pesos = +$('cfgPesos').value,
+        absorcion = +$('cfgAbsorcion').value / 100, porPucho = +$('cfgPorPucho').value;
+  if (!(cada > 0 && pesos > 0 && absorcion > 0 && absorcion <= 1 && porPucho > 0)) {
+    return fail('Revisá los valores: tienen que ser mayores a cero (absorción, hasta 100%).');
+  }
+  const prev = { PRECIO: { ...PRECIO }, CIG: { ...CIG } };
+  Object.assign(PRECIO, { cada, pesos }); Object.assign(CIG, { absorcion, porPucho });
+  render();
+
+  // .select() es lo que distingue "RLS bloqueo" de "guardo": update() sin
+  // seleccionar de vuelta devuelve exito con 0 filas tocadas, sin error.
+  const { data, error } = await sb.from('app_config').update({
+    precio_cada: cada, precio_pesos: pesos, cig_absorcion: absorcion, cig_por_pucho: porPucho,
+    updated_by: me, updated_at: new Date().toISOString()
+  }).eq('id', 1).select();
+
+  if (error || !data?.length) {
+    Object.assign(PRECIO, prev.PRECIO); Object.assign(CIG, prev.CIG); render();
+    return fail(error && !/policy|denied/i.test(error.message) ? error
+      : 'No tenés permiso para editar. ¿Entraste con el mail correcto?');
+  }
 }
 
 async function add(brand, mg) {
@@ -606,15 +653,36 @@ const pantallaAjustes = () => `
         style="width:100%;height:44px">Cerrar sesión</button></div>
     </div>
     <div class="card">
-      <div class="sec"><span class="micro">Constantes</span></div>
-      <div class="row"><div class="t"><b>${plata(PRECIO.pesos / PRECIO.cada)}</b>
-        <span>por SIUP · ${PRECIO.cada} salen ${plata(PRECIO.pesos)}</span></div></div>
-      <div class="row"><div class="t"><b>${CIG.absorcion * 100}% · ${CIG.porPucho} mg</b>
-        <span>absorción y mg por cigarrillo</span></div></div>
-      <p class="nota">Los cigarrillos equivalentes son una estimación gruesa, no un dato
-        médico: se asume que se absorbe el ${CIG.absorcion * 100}% del mg impreso y que un
-        cigarrillo entrega ${CIG.porPucho} mg. Un SIUP de 6 mg ≈
-        ${(6 * CIG.absorcion / CIG.porPucho).toFixed(1)} cigarrillos.</p>
+      <div class="sec"><span class="micro">Constantes</span>
+        <span class="micro">para los dos</span></div>
+
+      <div class="field">
+        <span>Precio</span>
+        <div class="fieldrow">cada
+          <input type="number" id="cfgCada" min="1" step="1" value="${PRECIO.cada}">
+          SIUPs cuestan $
+          <input type="number" id="cfgPesos" min="1" step="1" value="${PRECIO.pesos}">
+        </div>
+      </div>
+      <div class="field">
+        <span>Absorción</span>
+        <div class="fieldrow">
+          <input type="number" id="cfgAbsorcion" min="1" max="100" step="1"
+            value="${Math.round(CIG.absorcion * 100)}">
+          % del mg impreso se absorbe
+        </div>
+      </div>
+      <div class="field">
+        <span>Cigarrillo</span>
+        <div class="fieldrow">
+          <input type="number" id="cfgPorPucho" min="0.1" step="0.1" value="${CIG.porPucho}">
+          mg de nicotina por pucho
+        </div>
+      </div>
+
+      <button id="guardarConfig">Guardar</button>
+      <p class="nota">Estimación gruesa, no un dato médico. Con estos valores, un SIUP
+        de 6 mg ≈ ${(6 * CIG.absorcion / CIG.porPucho).toFixed(1)} cigarrillos.</p>
     </div>
   </div>`;
 
@@ -674,6 +742,9 @@ function render() {
 
   const out = $('logout');
   if (out) out.onclick = () => sb.auth.signOut();
+
+  const guardar = $('guardarConfig');
+  if (guardar) guardar.onclick = guardarConfig;
 }
 
 /* ───── ponytail: check sin login. Consola -> demo(), demo(true) sin rival ───── */
@@ -743,6 +814,14 @@ window.demo = (solo = false) => {
   A(document.querySelectorAll('.heatmap .cell.hoy').length === 1,
     'el heatmap no marca exactamente un dia como hoy');
   A(!document.querySelector('.heatmap .cell.futuro.hoy'), 'hoy no puede ser futuro');
+
+  tab = 'ajustes'; render();
+  A(+$('cfgCada').value === PRECIO.cada && +$('cfgPesos').value === PRECIO.pesos,
+    'el form de precio no refleja PRECIO actual');
+  A(+$('cfgAbsorcion').value === Math.round(CIG.absorcion * 100) &&
+    +$('cfgPorPucho').value === CIG.porPucho, 'el form de cig no refleja CIG actual');
+  A(!!$('guardarConfig'), 'falta el boton guardar en ajustes');
+
   tab = 'hoy'; render();
 
   if (solo) {
