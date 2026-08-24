@@ -224,6 +224,10 @@ const NOTIFY_TOPIC = {
   'lautaroppaniagua@gmail.com': 'siup-lautaro-3aed4df0',
   'chicchittir@gmail.com': 'siup-roberto-fbcc39da'
 };
+// fijas a la URL de produccion: ntfy las resuelve desde SUS servidores, no
+// desde el celular, asi que "localhost" durante pruebas locales no sirve.
+const SITE_URL = 'https://lautaroppaniagua.github.io/Siup-app/';
+const ICON_URL = SITE_URL + 'icon.png';
 const UNDO_MS = 3600e3;                              // igual que la policy undo_own
 
 /* ───── helpers ───── */
@@ -299,8 +303,8 @@ function notifyOther(brand, mg) {
   if (!otroEmail) return;
   fetch(`https://ntfy.sh/${NOTIFY_TOPIC[otroEmail]}`, {
     method: 'POST',
-    headers: { Title: 'SIUP', Priority: 'default', Click: location.origin + location.pathname },
-    body: `${nameOf(me)} se cargó ${brand.toUpperCase()} ${mg} mg`
+    headers: { Title: 'SIUUUUP', Priority: 'default', Click: SITE_URL, Icon: ICON_URL },
+    body: `${nameOf(me)} registró una entrada`
   }).catch(() => {});
 }
 
