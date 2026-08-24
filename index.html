@@ -65,6 +65,26 @@
             background: var(--line); }
   .bars i.m { background: var(--mine); }
   .bars i.t { background: var(--theirs); }
+  #chart svg { width: 100%; height: auto; display: block; }
+  #chart path { fill: none; stroke-width: 2; stroke-linejoin: round;
+                stroke-linecap: round; vector-effect: non-scaling-stroke; }
+  #chart path.m { stroke: var(--mine); }
+  #chart path.t { stroke: var(--theirs); }
+  #chart path.fill { stroke: none; opacity: .13; }
+  #chart path.fill.m { fill: var(--mine); }
+  #chart path.fill.t { fill: var(--theirs); }
+
+  /* competencia: una sola barra de punta a punta */
+  .vs { display: flex; height: 30px; border-radius: 8px; overflow: hidden;
+        background: var(--line); }
+  .vs i { display: flex; align-items: center; font-size: 12px; font-weight: 600;
+          color: #12131a; min-width: 0; transition: width .3s; }
+  .vs i.m { background: var(--mine); justify-content: flex-start; padding-left: 9px; }
+  .vs i.t { background: var(--theirs); justify-content: flex-end; padding-right: 9px; }
+  .vslabels { display: flex; justify-content: space-between;
+              font-size: 12px; margin-top: 7px; }
+  .vslabels b { font-weight: 600; }
+  .vsnote { text-align: center; font-size: 12px; color: var(--dim); margin-top: 9px; }
   .axis { display: flex; justify-content: space-between;
           font-size: 11px; color: var(--dim); margin-top: 5px; }
   #hours { height: 76px; gap: 2px; }
@@ -103,8 +123,13 @@
   <h2>Hoy</h2>
   <div class="grid" id="today"></div>
 
-  <h2>Últimos 14 días · mg</h2>
-  <div class="bars" id="chart"></div>
+  <h2>Competencia</h2>
+  <div class="vs" id="vs"></div>
+  <div class="vslabels" id="vslabels"></div>
+  <div class="vsnote" id="vsnote"></div>
+
+  <h2>Últimos 30 días · mg</h2>
+  <div id="chart"></div>
   <div class="axis" id="days"></div>
   <div class="key" id="chartkey"></div>
 
@@ -258,7 +283,7 @@ export function stats(rows, me) {
     mgHoy, countHoy: mios.filter(r => dayKey(new Date(r.at)) === hoy).length,
     mgHoyOtro: diasOtro[hoy] || 0,
     countHoyOtro: otro.filter(r => dayKey(new Date(r.at)) === hoy).length,
-    mgTotal, count: mios.length,
+    mgTotal, mgOtroTotal: mgOtro, count: mios.length,
     puchos: mgTotal * CIG.absorcion / CIG.porPucho,
     gastado: mios.length * (PRECIO.pesos / PRECIO.cada),
     // desvio de hoy contra el promedio de los dias anteriores
@@ -276,8 +301,8 @@ export function stats(rows, me) {
 }
 
 /* ---------- pintar ---------- */
-const hhmm = h => String(Math.floor(h)).padStart(2, '0') + ':' +
-                  String(Math.round((h % 1) * 60)).padStart(2, '0');
+// hora redondeada y nada mas: "solés arrancar 12hs". 23.7 -> 0, no 24.
+const horaSola = h => (Math.round(h) % 24) + 'hs';
 
 function render() {
   const s = stats(rows, me);
@@ -297,25 +322,51 @@ function render() {
       : `en línea con tu promedio de ${Math.round(s.media)} mg`, 'wide')) +
     (s.arranqueHoy ? card(
       new Date(s.arranqueHoy).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      s.arranqueMedio ? `primer SIUP de hoy · solés arrancar ${hhmm(s.arranqueMedio)}`
+      s.arranqueMedio ? `primer SIUP de hoy · solés arrancar ${horaSola(s.arranqueMedio)}`
                       : 'primer SIUP de hoy', 'wide') : '');
 
-  /* 14 dias */
-  const dias14 = [...Array(14)].map((_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - 13 + i);
+  /* competencia: una barra de punta a punta, cada uno empuja desde su lado */
+  const total = s.mgTotal + s.mgOtroTotal;
+  if (!s.hayOtro || !total) {
+    $('vs').innerHTML = `<i class="m" style="width:100%">vos</i>`;
+    $('vslabels').innerHTML = `<b>${s.mgTotal} mg</b><span>esperando rival</span>`;
+    $('vsnote').textContent = '';
+  } else {
+    const pct = s.mgTotal / total * 100;
+    $('vs').innerHTML =
+      `<i class="m" style="width:${pct}%">${pct > 18 ? Math.round(pct) + '%' : ''}</i>` +
+      `<i class="t" style="width:${100 - pct}%">${100 - pct > 18 ? Math.round(100 - pct) + '%' : ''}</i>`;
+    $('vslabels').innerHTML =
+      `<span><b style="color:var(--mine)">vos</b> ${s.mgTotal.toLocaleString('es-AR')} mg</span>` +
+      `<span>${s.mgOtroTotal.toLocaleString('es-AR')} mg <b style="color:var(--theirs)">${s.nombreOtro}</b></span>`;
+    $('vsnote').textContent = s.vs > 0
+      ? `vas ${Math.round(s.vs)}% arriba`
+      : `${s.nombreOtro} te saca ${Math.round(-s.vs / (1 + s.vs / 100))}%`;
+  }
+
+  /* 30 dias, lineas */
+  const dias30 = [...Array(30)].map((_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - 29 + i);
     const rs = rows.filter(r => dayKey(new Date(r.at)) === dayKey(d));
     return { d, m: sum(rs.filter(mine)), t: sum(rs.filter(r => !mine(r))) };
   });
-  const max = Math.max(1, ...dias14.map(x => Math.max(x.m, x.t)));
-  $('chart').innerHTML = dias14.map(x =>
-    `<div title="${dayKey(x.d)}: ${x.m} / ${x.t} mg">
-       <i class="m" style="height:${x.m / max * 100}%"></i>
-       <i class="t" style="height:${x.t / max * 100}%"></i></div>`).join('');
-  $('days').innerHTML =
-    `<span>${dias14[0].d.getDate()}/${dias14[0].d.getMonth() + 1}</span><span>hoy</span>`;
+  const max = Math.max(1, ...dias30.map(x => Math.max(x.m, x.t)));
+  const W = 340, H = 108, PAD = 5;
+  const px = i => (i / (dias30.length - 1) * W).toFixed(1);
+  const py = v => (H - PAD - v / max * (H - PAD * 2)).toFixed(1);
+  const linea = k => dias30.map((x, i) => `${i ? 'L' : 'M'}${px(i)},${py(x[k])}`).join(' ');
+  const area = k => `${linea(k)} L${W},${H} L0,${H} Z`;
+
+  $('chart').innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+       ${s.hayOtro ? `<path class="fill t" d="${area('t')}"/><path class="t" d="${linea('t')}"/>` : ''}
+       <path class="fill m" d="${area('m')}"/><path class="m" d="${linea('m')}"/>
+     </svg>`;
+  $('days').innerHTML = [dias30[0], dias30[14]].map(x =>
+    `<span>${x.d.getDate()}/${x.d.getMonth() + 1}</span>`).join('') + `<span>hoy</span>`;
   $('chartkey').innerHTML =
     `<span><s style="background:var(--mine)"></s>vos</span>` +
-    `<span><s style="background:var(--theirs)"></s>${s.nombreOtro || 'el otro'}</span>` +
+    (s.hayOtro ? `<span><s style="background:var(--theirs)"></s>${s.nombreOtro}</span>` : '') +
     `<span>pico ${max} mg</span>`;
 
   /* horario 0-23 */
@@ -337,11 +388,7 @@ function render() {
     (s.record ? card(`${s.record.mg}<small> mg</small>`,
          `tu récord · ${new Date(s.record.dia + 'T12:00').toLocaleDateString('es-AR',
            { day: 'numeric', month: 'long' })}`) : '') +
-    card(`${s.promedioDia.toFixed(1)}<small> mg</small>`, 'por día, promedio') +
-    (s.vs === null ? '' : card(
-      `${s.vs > 0 ? '+' : ''}${Math.round(s.vs)}%`,
-      s.vs > 0 ? `más adicto que ${s.nombreOtro}` : `menos adicto que ${s.nombreOtro}`,
-      'wide ' + (s.vs > 0 ? '' : 'hl')));
+    card(`${s.promedioDia.toFixed(1)}<small> mg</small>`, 'por día, promedio');
 
   /* registros */
   const undoable = rows.find(r =>
@@ -383,7 +430,7 @@ $('pad').onclick = async e => {
 };
 
 /* ---------- ponytail: check sin login. Consola -> demo(). No toca la base. ---------- */
-window.demo = () => {
+window.demo = (solo = false) => {   // demo(true) = todavia sin rival, el dia uno
   me = 'lautaroppaniagua@gmail.com';
   const now = Date.now();
   let n = 0;
@@ -403,6 +450,7 @@ window.demo = () => {
       n++;
     }
   }
+  if (solo) rows = rows.filter(r => r.email === me);
   rows.sort((a, b) => b.at.localeCompare(a.at));
   $('gate').hidden = true; $('app').hidden = false;
   $('me').textContent = nameOf(me);
@@ -410,6 +458,16 @@ window.demo = () => {
 
   const s = stats(rows, me);
   const A = (c, m) => console.assert(c, m);
+
+  if (solo) {   // sin rival nada se rompe ni miente
+    A(!s.hayOtro && s.vs === null, 'detecto un rival que no existe');
+    A(s.mgOtroTotal === 0 && s.mgHoyOtro === 0, 'mg fantasma del rival');
+    A($('vs').children.length === 1 &&
+      parseFloat($('vs').children[0].style.width) === 100, 'la barra vs sin rival esta mal');
+    A(!$('chart').querySelector('path.t'), 'dibuja la linea de un rival inexistente');
+    A(document.documentElement.scrollWidth <= innerWidth, 'scroll horizontal sin rival');
+    return 'ok (sin rival)';
+  }
   A(/^\d{4}-\d{2}-\d{2}$/.test(dayKey(new Date())), 'dayKey no da YYYY-MM-DD local');
   A(s.mgTotal === sum(rows.filter(r => r.email === me)), 'mgTotal no cierra');
   A(s.gastado === s.count * 440, 'plata mal: 6600/15 = 440 por SIUP');
@@ -420,7 +478,13 @@ window.demo = () => {
   A(s.favorita >= 0 && s.favorita <= 23, 'hora pico fuera de rango');
   A(s.arranqueHoy !== null, 'falta el primer SIUP de hoy');
   A(s.vs !== null && s.hayOtro, 'no se calculo la comparativa');
-  A($('chart').children.length === 14, 'el grafico no tiene 14 dias');
+  A($('chart').querySelectorAll('path.m, path.t').length === 4, 'faltan lineas en el grafico');
+  A($('chart').querySelector('path.m:not(.fill)').getAttribute('d').split('L').length === 30,
+    'la linea no tiene 30 puntos');
+  A(horaSola(23.7) === '0hs' && horaSola(11.9) === '12hs', 'la hora redondea mal');
+  const anchos = [...$('vs').children].map(i => parseFloat(i.style.width));
+  A(Math.abs(anchos.reduce((a, b) => a + b, 0) - 100) < .01, 'la barra vs no suma 100%');
+  A(s.mgTotal + s.mgOtroTotal === sum(rows), 'los mg de la competencia no cierran');
   A($('hours').children.length === 24, 'el histograma no tiene 24 horas');
   A(!!$('log').querySelector('.undo'), 'no aparece deshacer');
   A(document.documentElement.scrollWidth <= window.innerWidth, 'la pagina scrollea horizontal');
