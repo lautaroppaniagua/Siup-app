@@ -206,6 +206,12 @@ const PRECIO = { cada: 15, pesos: 6600 };            // $440 por SIUP
 const CIG = { absorcion: 0.5, porPucho: 1.2 };       // estimacion, no dato medico
 const OPCIONES = [['zyn',3], ['zyn',6], ['velo',4], ['velo',6]];
 const NAMES = { 'lautaroppaniagua@gmail.com': 'Lautaro', 'chicchittir@gmail.com': 'Roberto' };
+// ntfy.sh, mismo esquema que armoryshop: un topic random por persona, sin backend.
+// Cada uno se suscribe desde la app ntfy a SU topic (el que usa el OTRO para avisarle).
+const NOTIFY_TOPIC = {
+  'lautaroppaniagua@gmail.com': 'siup-lautaro-3aed4df0',
+  'chicchittir@gmail.com': 'siup-roberto-fbcc39da'
+};
 const UNDO_MS = 3600e3;                              // igual que la policy undo_own
 
 /* ───── helpers ───── */
@@ -259,6 +265,20 @@ async function add(brand, mg) {
       ? 'No tenés permiso para cargar. ¿Entraste con el mail correcto?' : error);
   }
   rows.unshift(data); rows.sort((a, b) => b.at.localeCompare(a.at)); render();
+  notifyOther(brand, mg);
+}
+
+// push al OTRO cuando cargo yo, nunca a mi propio celular.
+// Fire-and-forget: si falla o el tab se cierra antes, el registro ya esta
+// guardado igual, la notificacion es un bonus, no la fuente de verdad.
+function notifyOther(brand, mg) {
+  const otroEmail = Object.keys(NOTIFY_TOPIC).find(e => e !== me);
+  if (!otroEmail) return;
+  fetch(`https://ntfy.sh/${NOTIFY_TOPIC[otroEmail]}`, {
+    method: 'POST',
+    headers: { Title: 'SIUP', Priority: 'default', Click: location.origin + location.pathname },
+    body: `${nameOf(me)} se cargó ${brand.toUpperCase()} ${mg} mg`
+  }).catch(() => {});
 }
 
 async function undo(row) {
