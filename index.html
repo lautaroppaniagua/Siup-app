@@ -87,6 +87,7 @@ header h1{margin:2px 0 0;font-size:28px;font-weight:800;
   border-radius:var(--radius-md)}
 .duo b{display:block;font-size:22px;font-weight:800;color:var(--text-strong)}
 .duo span{display:block;margin-top:2px}
+.ctx{font-size:13px;color:var(--text-muted);text-align:center;line-height:1.6}
 
 /* grilla 2x2 de carga */
 #pad{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -145,6 +146,17 @@ header h1{margin:2px 0 0;font-size:28px;font-weight:800;
 .key s{display:inline-block;width:9px;height:9px;border-radius:2px;
   margin-right:5px;text-decoration:none}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+/* heatmap del mes */
+.heatmap{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.heatmap .dow{font-size:10px;font-weight:700;color:var(--text-muted);
+  text-align:center;padding-bottom:2px}
+.heatmap .cell{aspect-ratio:1;border-radius:6px;display:flex;align-items:center;
+  justify-content:center;font-size:11px;font-weight:700;color:var(--text-strong);
+  background:var(--gray-100)}
+.heatmap .cell.futuro{background:none;border:1px dashed var(--gray-200);color:var(--text-muted)}
+.heatmap .cell.hoy{box-shadow:inset 0 0 0 2px var(--brand-zyn)}
+.heatmap .cell.empty{visibility:hidden}
 .stat{background:var(--surface-card);border-radius:var(--radius-lg);
   box-shadow:var(--shadow-card);padding:14px 16px;min-width:0}
 .stat.wide{grid-column:1/-1}
@@ -222,6 +234,17 @@ const sum = rs => rs.reduce((n, r) => n + r.mg, 0);
 const plata = n => '$' + Math.round(n).toLocaleString('es-AR');
 const hhmm = d => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 const horaSola = h => (Math.round(h) % 24) + 'hs';   // sin minutos: es un promedio
+const DOW = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+function haceTexto(iso) {
+  if (!iso) return null;
+  const min = Math.floor((Date.now() - new Date(iso)) / 60000);
+  if (min < 1) return 'recién';
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h ${min % 60}min`;
+  const d = Math.floor(h / 24);
+  return `${d} día${d === 1 ? '' : 's'}`;
+}
 const fail = e => { $('err').textContent = e.message || e; $('err').style.display = 'block'; };
 const clearErr = () => { $('err').style.display = 'none'; };
 
@@ -320,11 +343,31 @@ export function stats(rows, me) {
   const hoyMios = mios.filter(r => dayKey(new Date(r.at)) === hoy);
   const mgTotal = sum(mios), mgOtro = sum(otro);
 
+  // vs ayer: solo tiene sentido si la app ya existia ayer, si no un "-mgHoy"
+  // no significa que bajaste, significa que ayer no habia donde cargar nada
+  const ayerKey = dayKey(new Date(Date.now() - 864e5));
+  const huboAyer = dayKey(desde) <= ayerKey;
+  const mgAyer = dias[ayerKey] || 0;
+
+  // consumo habitual: promedio historico para ESTE dia de la semana (excluyendo hoy),
+  // no el promedio general — un lunes se compara contra otros lunes, no contra un sabado
+  const porDow = {};
+  Object.entries(dias).forEach(([k, mg]) => {
+    if (k === hoy) return;
+    const dw = new Date(k + 'T12:00').getDay();
+    (porDow[dw] ||= []).push(mg);
+  });
+  const dowHoy = new Date().getDay();
+  const muestraDow = porDow[dowHoy] || [];
+  const promedioDow = muestraDow.length
+    ? muestraDow.reduce((a, b) => a + b, 0) / muestraDow.length : null;
+
   return {
     hayOtro: otro.length > 0,
     nombreOtro: otro.length ? nameOf(otro[0].email) : null,
     mgHoy, countHoy: hoyMios.length,
     ultima: hoyMios[0] ? hhmm(new Date(hoyMios[0].at)) : null,
+    ultimoAt: mios[0] ? mios[0].at : null,   // el ultimo en general, no solo el de hoy
     mgHoyOtro: diasOtro[hoy] || 0,
     countHoyOtro: otro.filter(r => dayKey(new Date(r.at)) === hoy).length,
     // cuantos de cada opcion llevas hoy, para el contador de cada tile
@@ -339,13 +382,34 @@ export function stats(rows, me) {
     arranqueMedio: arranques.length
       ? arranques.reduce((a, b) => a + b, 0) / arranques.length : null,
     promedioDia: mgTotal / span,
-    vs: mgOtro > 0 ? (mgTotal / mgOtro - 1) * 100 : null
+    vs: mgOtro > 0 ? (mgTotal / mgOtro - 1) * 100 : null,
+    vsAyer: huboAyer ? { mg: mgHoy - mgAyer, ayer: mgAyer,
+      pct: mgAyer > 0 ? (mgHoy / mgAyer - 1) * 100 : null } : null,
+    habitual: promedioDow !== null ? { pct: promedioDow > 0 ? mgHoy / promedioDow * 100 : null,
+      promedio: promedioDow, dia: DOW[dowHoy] } : null
   };
 }
 
 /* ───── piezas ───── */
 const stat = (v, sub, cls = '') =>
   `<div class="stat ${cls}"><b>${v}</b><span class="micro">${sub}</span></div>`;
+
+function contexto(s) {
+  const lineas = [];
+  if (s.vsAyer) {
+    const { mg, pct } = s.vsAyer;
+    const flecha = mg === 0 ? '·' : mg < 0 ? '↓' : '↑';
+    const pctTxt = pct === null ? '' : ` (${pct > 0 ? '+' : ''}${Math.round(pct)}%)`;
+    lineas.push(mg === 0
+      ? 'igual que ayer'
+      : `${flecha} ${Math.abs(mg)} mg ${mg < 0 ? 'menos' : 'más'} que ayer${pctTxt}`);
+  }
+  if (s.habitual && s.habitual.pct !== null) {
+    lineas.push(`${Math.round(s.habitual.pct)}% de tu ${s.habitual.dia} promedio ` +
+      `(${Math.round(s.habitual.promedio)} mg)`);
+  }
+  return lineas.length ? `<div class="ctx">${lineas.join('<br>')}</div>` : '';
+}
 
 function competencia(s) {
   const total = s.mgTotal + s.mgOtroTotal;
@@ -368,6 +432,41 @@ function competencia(s) {
     <div class="vsnote micro">${s.vs > 0
       ? `vas ${Math.round(s.vs)}% arriba`
       : `${s.nombreOtro} te saca ${Math.round(-s.vs / (1 + s.vs / 100))}%`}</div>`;
+}
+
+const DOW_CORTO = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+
+// heatmap del mes en curso, solo mis mg — es personal, no compite con nadie
+function heatmapMes() {
+  const dias = {};
+  rows.filter(r => r.email === me).forEach(r => {
+    const k = dayKey(new Date(r.at)); dias[k] = (dias[k] || 0) + r.mg;
+  });
+  const hoy = new Date();
+  const nDias = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
+  const primerDow = (new Date(hoy.getFullYear(), hoy.getMonth(), 1).getDay() + 6) % 7; // lunes=0
+
+  const celdas = [];
+  for (let i = 0; i < primerDow; i++) celdas.push(null);
+  let max = 0;
+  for (let d = 1; d <= nDias; d++) {
+    const mg = dias[dayKey(new Date(hoy.getFullYear(), hoy.getMonth(), d))] || 0;
+    if (mg > max) max = mg;
+    celdas.push({ d, mg, esHoy: d === hoy.getDate(), esFuturo: d > hoy.getDate() });
+  }
+
+  const cabecera = DOW_CORTO.map(l => `<div class="dow">${l}</div>`).join('');
+  const cuerpo = celdas.map(c => {
+    if (!c) return '<div class="cell empty"></div>';
+    if (c.esFuturo) return `<div class="cell futuro">${c.d}</div>`;
+    const op = c.mg > 0 ? .2 + .8 * (c.mg / max) : 0;
+    const bg = c.mg > 0 ? `background:rgba(0,169,226,${op.toFixed(2)})` : '';   // --cyan-500 en rgb
+    return `<div class="cell${c.esHoy ? ' hoy' : ''}" style="${bg}"
+      title="${c.mg} mg">${c.d}</div>`;
+  }).join('');
+
+  return `<div class="heatmap">${cabecera}${cuerpo}</div>
+    <div class="key"><span>pico del mes: ${max} mg</span></div>`;
 }
 
 function lista(rs, conUndo) {
@@ -398,8 +497,9 @@ function pantallaHoy(s) {
       <div class="big num">${s.mgHoy}<span>mg</span></div>
       <div class="duo">
         <div><b class="num">${s.countHoy}</b><span class="micro">siups</span></div>
-        <div><b class="num">${s.ultima || '—'}</b><span class="micro">última</span></div>
+        <div><b class="num">${haceTexto(s.ultimoAt) || '—'}</b><span class="micro">último</span></div>
       </div>
+      ${contexto(s)}
     </div>
 
     <div>
@@ -466,6 +566,12 @@ function pantallaStats(s) {
         : '<span>sin datos todavía</span>'}</div>
     </div>
 
+    <div class="card">
+      <div class="sec"><span class="micro">${new Date().toLocaleDateString('es-AR',
+        { month: 'long' })} · vos</span></div>
+      ${heatmapMes()}
+    </div>
+
     <div class="grid2">
       ${s.desvio === null ? '' : stat(`${s.desvio.toFixed(1)}×`,
         s.desvio >= 1.4 ? `más que tu promedio de ${Math.round(s.media)} mg`
@@ -529,6 +635,9 @@ $('tabs').onclick = e => {
   if (b) { tab = b.dataset.tab; scrollTo(0, 0); render(); }
 };
 $('goajustes').onclick = () => { tab = 'ajustes'; scrollTo(0, 0); render(); };
+
+// "tiempo desde el ultimo siup" no queda pegado: se repinta solo en Hoy
+setInterval(() => { if (me && tab === 'hoy') render(); }, 60000);
 
 /* ───── render ───── */
 function render() {
@@ -614,6 +723,23 @@ window.demo = (solo = false) => {
   A(s.mgTotal + s.mgOtroTotal === sum(rows), 'los mg de la competencia no cierran');
   const anchos = [...document.querySelector('.vs').children].map(i => parseFloat(i.style.width));
   A(Math.abs(anchos.reduce((a, b) => a + b, 0) - 100) < .01, 'la barra vs no suma 100%');
+
+  const maxAt = rows.filter(r => r.email === me).reduce((mx, r) => r.at > mx ? r.at : mx, '');
+  A(s.ultimoAt === maxAt, 'ultimoAt no es el registro mas reciente');
+  A(haceTexto(s.ultimoAt) !== null, 'haceTexto no formatea un timestamp real');
+  A(haceTexto(null) === null, 'haceTexto deberia dar null sin timestamp');
+  A(s.vsAyer !== null && typeof s.vsAyer.mg === 'number', 'vsAyer no se calculo con 60 dias de historia');
+  A(s.habitual !== null && typeof s.habitual.pct === 'number',
+    'habitual no se calculo con 60 dias de historia');
+
+  tab = 'stats'; render();
+  const nDiasMes = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  A(document.querySelectorAll('.heatmap .cell:not(.empty)').length === nDiasMes,
+    'el heatmap no tiene un cell por cada dia del mes');
+  A(document.querySelectorAll('.heatmap .cell.hoy').length === 1,
+    'el heatmap no marca exactamente un dia como hoy');
+  A(!document.querySelector('.heatmap .cell.futuro.hoy'), 'hoy no puede ser futuro');
+  tab = 'hoy'; render();
 
   if (solo) {
     A(!s.hayOtro && s.vs === null, 'detecto un rival que no existe');
