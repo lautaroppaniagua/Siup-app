@@ -1,102 +1,125 @@
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Parches</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12131a">
+<title>SIUP</title>
 
 <style>
   :root {
     --bg: #12131a; --card: #1c1e28; --line: #2c2f3d;
     --fg: #e8e9ee; --dim: #8b8fa3;
-    --mine: #6ea8fe; --theirs: #f5a97f; --bad: #ed8796;
+    --mine: #6ea8fe; --theirs: #f5a97f; --bad: #ed8796; --good: #a6da95;
   }
   * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
-    margin: 0; padding: 16px; max-width: 560px; margin-inline: auto;
+    margin: 0 auto; max-width: 480px;
+    padding: 12px 12px calc(24px + env(safe-area-inset-bottom));
     background: var(--bg); color: var(--fg);
-    font: 16px/1.5 system-ui, sans-serif;
-    -webkit-text-size-adjust: 100%;
+    font: 16px/1.45 system-ui, sans-serif;
   }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
-       color: var(--dim); font-weight: 600; margin: 28px 0 10px; }
-  button { font: inherit; color: inherit; cursor: pointer; border-radius: 10px; }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .1em;
+       color: var(--dim); font-weight: 600; margin: 22px 0 8px; }
+  button { font: inherit; color: inherit; cursor: pointer; border-radius: 12px;
+           -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 
   #err { display: none; background: var(--bad); color: #12131a;
-         padding: 10px 14px; border-radius: 10px; margin-bottom: 14px;
+         padding: 10px 14px; border-radius: 10px; margin-bottom: 12px;
          font-size: 14px; white-space: pre-wrap; }
 
-  /* login */
-  #gate { text-align: center; padding-top: 22vh; }
+  #gate { text-align: center; padding-top: 25vh; }
+  #gate p { color: var(--dim); font-size: 14px; }
+  #gate b { display: block; font-size: 40px; letter-spacing: .12em; margin-bottom: 4px; }
   #gate button { background: var(--fg); color: var(--bg); border: 0;
-                 padding: 14px 26px; font-weight: 600; }
+                 padding: 15px 28px; font-weight: 600; }
 
-  /* topbar */
-  #top { display: flex; align-items: baseline; gap: 10px; }
-  #top b { font-size: 20px; }
+  #top { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  #top b { font-size: 17px; }
   #top button { margin-left: auto; background: none; border: 0;
-                color: var(--dim); font-size: 13px; padding: 4px; }
+                color: var(--dim); font-size: 13px; padding: 0 8px; height: 44px; }
 
-  /* botones de carga */
-  #pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  /* botonera: lo primero y lo mas grande, se usa con el pulgar */
+  #pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
   #pad button { background: var(--card); border: 1px solid var(--line);
-                padding: 14px 4px; text-align: center; line-height: 1.25; }
-  #pad button:disabled { opacity: .45; }
-  #pad small { display: block; color: var(--dim); font-size: 12px; }
-  #pad b { font-size: 19px; }
+                padding: 13px 2px; text-align: center; line-height: 1.2; }
+  #pad button:active { background: var(--line); }
+  #pad button:disabled { opacity: .4; }
+  #pad small { display: block; color: var(--dim); font-size: 11px; letter-spacing: .04em; }
+  #pad b { font-size: 20px; }
 
-  /* totales de hoy */
-  #today { display: flex; gap: 10px; }
-  #today div { flex: 1; background: var(--card); border: 1px solid var(--line);
-               border-radius: 10px; padding: 12px 14px; }
-  #today b { display: block; font-size: 26px; line-height: 1.1; }
-  #today span { font-size: 12px; color: var(--dim); }
+  /* tarjetas de stats */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  .c { background: var(--card); border: 1px solid var(--line);
+       border-radius: 12px; padding: 11px 12px; min-width: 0; }
+  .c.wide { grid-column: 1 / -1; }
+  .c b { display: block; font-size: 23px; line-height: 1.15;
+         overflow-wrap: anywhere; }
+  .c b small { font-size: 13px; color: var(--dim); font-weight: 400; }
+  .c span { display: block; font-size: 11px; color: var(--dim);
+            margin-top: 2px; line-height: 1.3; }
+  .c.hl b { color: var(--mine); }
 
-  /* grafico */
-  #chart { display: flex; gap: 3px; height: 130px; align-items: flex-end; }
-  #chart > div { flex: 1; display: flex; gap: 2px; align-items: flex-end;
-                 height: 100%; }
-  #chart i { flex: 1; border-radius: 2px 2px 0 0; min-height: 1px; }
-  #chart i.m { background: var(--mine); }
-  #chart i.t { background: var(--theirs); }
-  #days { display: flex; justify-content: space-between;
-          font-size: 11px; color: var(--dim); margin-top: 6px; }
-  #key { font-size: 12px; color: var(--dim); margin-top: 8px; }
-  #key s { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
+  /* graficos */
+  .bars { display: flex; gap: 3px; align-items: flex-end; height: 108px; }
+  .bars > div { flex: 1; display: flex; gap: 2px; align-items: flex-end; height: 100%; }
+  .bars i { flex: 1; border-radius: 2px 2px 0 0; min-height: 2px;
+            background: var(--line); }
+  .bars i.m { background: var(--mine); }
+  .bars i.t { background: var(--theirs); }
+  .axis { display: flex; justify-content: space-between;
+          font-size: 11px; color: var(--dim); margin-top: 5px; }
+  #hours { height: 76px; gap: 2px; }
+  #hours i { background: var(--mine); opacity: .85; }
+  .key { font-size: 11px; color: var(--dim); margin-top: 7px;
+         display: flex; gap: 12px; flex-wrap: wrap; }
+  .key s { display: inline-block; width: 9px; height: 9px;
+           border-radius: 2px; margin-right: 4px; text-decoration: none; }
 
   /* tabla */
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  td { padding: 9px 0; border-top: 1px solid var(--line); }
+  td { padding: 9px 0; border-top: 1px solid var(--line); vertical-align: middle; }
   td:last-child { text-align: right; }
-  .who { color: var(--dim); font-size: 12px; }
-  .undo { background: none; border: 1px solid var(--line);
-          color: var(--dim); font-size: 12px; padding: 3px 10px; }
+  .who { color: var(--dim); font-size: 11px; }
+  /* 44px de alto: es un boton de pulgar, no de mouse */
+  .undo { background: none; border: 1px solid var(--line); color: var(--dim);
+          font-size: 12px; padding: 0 14px; height: 44px; }
+  .undo:active { background: var(--line); }
   .empty { color: var(--dim); font-size: 14px; }
+  .foot { color: var(--dim); font-size: 11px; margin-top: 20px; line-height: 1.5; }
 </style>
 
 <div id="err"></div>
 
 <div id="gate" hidden>
-  <p class="empty">Contador de parches</p>
+  <b>SIUP</b>
+  <p>contador de parches</p>
   <button id="login">Entrar con Google</button>
 </div>
 
 <main id="app" hidden>
-  <div id="top">
-    <b id="me"></b>
-    <button id="logout">salir</button>
-  </div>
+  <div id="top"><b id="me"></b><button id="logout">salir</button></div>
 
-  <h2>Cargar</h2>
   <div id="pad"></div>
 
   <h2>Hoy</h2>
-  <div id="today"></div>
+  <div class="grid" id="today"></div>
 
   <h2>Últimos 14 días · mg</h2>
-  <div id="chart"></div>
-  <div id="days"></div>
-  <div id="key"></div>
+  <div class="bars" id="chart"></div>
+  <div class="axis" id="days"></div>
+  <div class="key" id="chartkey"></div>
+
+  <h2>Horario</h2>
+  <div class="bars" id="hours"></div>
+  <div class="axis" id="hoursaxis"></div>
+  <div class="key" id="hourskey"></div>
+
+  <h2>Historial</h2>
+  <div class="grid" id="stats"></div>
 
   <h2>Registros</h2>
   <table id="log"></table>
+
+  <p class="foot" id="foot"></p>
 </main>
 
 <script type="module">
@@ -107,28 +130,38 @@ const sb = createClient(
   'sb_publishable_x6gZcTfjmyx6HoPff4cHCQ_JItYdeH2'
 );
 
-const NAMES = { 'lautaroppaniagua@gmail.com': 'Lautaro' };
-const nameOf = e => NAMES[e] || e.split('@')[0];
+/* ---------- perillas ----------
+   Numeros del mundo real: si el precio cambia o la equivalencia no convence,
+   se tocan aca y nada mas. */
+const PRECIO = { cada: 15, pesos: 6600 };        // $440 por SIUP
+const CIG = {
+  absorcion: 0.5,   // del mg impreso, cuanto entra de verdad (~50-60% en 30-60 min)
+  porPucho: 1.2     // mg de nicotina que entrega un cigarrillo fumado
+};                  // => un SIUP de 6 mg ~ 2.5 puchos. Estimacion, no medicina.
 
+const NAMES = { 'lautaroppaniagua@gmail.com': 'Lautaro' };
 const BRANDS = ['zyn', 'velo'];
 const MGS = [3, 4, 6];
-const UNDO_MS = 60 * 60 * 1000;   // igual que la politica undo_own
+const UNDO_MS = 3600e3;   // igual que la policy undo_own
 
+/* ---------- helpers ---------- */
 const $ = id => document.getElementById(id);
-const dayKey = d => d.toLocaleDateString('sv');   // YYYY-MM-DD en hora local
+const nameOf = e => NAMES[e] || e.split('@')[0].replace(/^./, c => c.toUpperCase());
+const dayKey = d => d.toLocaleDateString('sv');            // YYYY-MM-DD local
+const sum = rs => rs.reduce((n, r) => n + r.mg, 0);
+const plata = n => '$' + Math.round(n).toLocaleString('es-AR');
 const fail = e => { $('err').textContent = e.message || e; $('err').style.display = 'block'; };
 const clearErr = () => { $('err').style.display = 'none'; };
+const card = (val, sub, cls = '') => `<div class="c ${cls}"><b>${val}</b><span>${sub}</span></div>`;
 
-let me = null;      // email de la sesion
-let rows = [];      // ponytail: 500 filas alcanzan para dos personas, paginar si no
+let me = null;
+let rows = [];   // ponytail: 5000 filas ~ un año entre dos. Agregar en SQL si se pasa.
 
 /* ---------- sesion ---------- */
-
 $('login').onclick = () => sb.auth.signInWithOAuth({
   provider: 'google',
   options: { redirectTo: location.origin + location.pathname }
 });
-
 $('logout').onclick = () => sb.auth.signOut();
 
 sb.auth.onAuthStateChange((_, session) => {
@@ -139,41 +172,26 @@ sb.auth.onAuthStateChange((_, session) => {
 });
 
 /* ---------- datos ---------- */
-
 async function load() {
-  const { data, error } = await sb
-    .from('nicotine_log')
-    .select('id,email,brand,mg,at')
-    .order('at', { ascending: false })
-    .limit(500);
-
+  const { data, error } = await sb.from('nicotine_log')
+    .select('id,email,brand,mg,at').order('at', { ascending: false }).limit(5000);
   if (error) return fail(error);
-
-  // RLS devuelve vacio si el mail no esta en el allowlist. Sin registros propios
-  // tampoco hay filas, asi que un insert de prueba es lo que distingue los casos.
-  rows = data;
-  clearErr();
-  render();
+  rows = data; clearErr(); render();
 }
 
 async function add(brand, mg) {
   clearErr();
   const temp = { id: 'temp', email: me, brand, mg, at: new Date().toISOString() };
-  rows.unshift(temp);
-  render();
+  rows.unshift(temp); render();
 
-  const { data, error } = await sb
-    .from('nicotine_log')
-    .insert({ brand, mg })
-    .select('id,email,brand,mg,at')
-    .single();
+  const { data, error } = await sb.from('nicotine_log')
+    .insert({ brand, mg }).select('id,email,brand,mg,at').single();
 
   rows = rows.filter(r => r !== temp);
   if (error) {
     render();
-    return fail(error.message.includes('policy')
-      ? 'No tenés permiso para cargar. ¿Entraste con el mail correcto?'
-      : error);
+    return fail(/policy|denied/i.test(error.message)
+      ? 'No tenés permiso para cargar. ¿Entraste con el mail correcto?' : error);
   }
   rows.unshift(data);
   rows.sort((a, b) => b.at.localeCompare(a.at));
@@ -182,51 +200,156 @@ async function add(brand, mg) {
 
 async function undo(row) {
   clearErr();
-  rows = rows.filter(r => r !== row);
-  render();
+  rows = rows.filter(r => r !== row); render();
   const { error } = await sb.from('nicotine_log').delete().eq('id', row.id);
-  if (error) { rows.unshift(row); render(); fail(error); }
+  if (error) { rows.unshift(row); rows.sort((a, b) => b.at.localeCompare(a.at)); render(); fail(error); }
 }
 
-/* ---------- render ---------- */
+/* ---------- estadisticas ----------
+   Funcion pura: rows + me -> numeros. Todo el resto solo pinta lo que sale de aca. */
+export function stats(rows, me) {
+  const mios = rows.filter(r => r.email === me);
+  const otro = rows.filter(r => r.email !== me);
+  const hoy = dayKey(new Date());
+
+  // mg por dia, para mi y para el otro
+  const porDia = rs => rs.reduce((m, r) => {
+    const k = dayKey(new Date(r.at));
+    m[k] = (m[k] || 0) + r.mg; return m;
+  }, {});
+  const dias = porDia(mios);
+  const diasOtro = porDia(otro);
+
+  // ventana comun: desde el primer registro de cualquiera. Sin esto el que
+  // arranco despues parece menos adicto solo por haber empezado tarde.
+  const primeros = rows.map(r => r.at).sort();
+  const desde = primeros[0] ? new Date(primeros[0]) : new Date();
+  const span = Math.max(1, Math.ceil((Date.now() - desde) / 864e5));
+
+  const mgHoy = dias[hoy] || 0;
+  const previos = Object.entries(dias).filter(([d]) => d !== hoy).map(([, v]) => v);
+  const media = previos.length ? previos.reduce((a, b) => a + b, 0) / previos.length : 0;
+
+  // dia record
+  const rec = Object.entries(dias).sort((a, b) => b[1] - a[1])[0];
+
+  // horas: histograma 0-23 de cuando pego cada SIUP
+  const horas = Array(24).fill(0);
+  mios.forEach(r => horas[new Date(r.at).getHours()]++);
+  const favorita = horas.indexOf(Math.max(...horas));
+
+  // primer SIUP de cada dia: promedio y el de hoy
+  const primeroPorDia = {};
+  mios.forEach(r => {
+    const k = dayKey(new Date(r.at));
+    if (!primeroPorDia[k] || r.at < primeroPorDia[k]) primeroPorDia[k] = r.at;
+  });
+  const arranques = Object.values(primeroPorDia)
+    .map(a => { const d = new Date(a); return d.getHours() + d.getMinutes() / 60; });
+  const arranqueMedio = arranques.length
+    ? arranques.reduce((a, b) => a + b, 0) / arranques.length : null;
+
+  const mgTotal = sum(mios);
+  const mgOtro = sum(otro);
+
+  return {
+    hayOtro: otro.length > 0,
+    nombreOtro: otro.length ? nameOf(otro[0].email) : null,
+    mgHoy, countHoy: mios.filter(r => dayKey(new Date(r.at)) === hoy).length,
+    mgHoyOtro: diasOtro[hoy] || 0,
+    countHoyOtro: otro.filter(r => dayKey(new Date(r.at)) === hoy).length,
+    mgTotal, count: mios.length,
+    puchos: mgTotal * CIG.absorcion / CIG.porPucho,
+    gastado: mios.length * (PRECIO.pesos / PRECIO.cada),
+    // desvio de hoy contra el promedio de los dias anteriores
+    desvio: media > 0 ? mgHoy / media : null,
+    media,
+    record: rec ? { dia: rec[0], mg: rec[1] } : null,
+    horas, favorita, arranqueMedio,
+    arranqueHoy: primeroPorDia[hoy] || null,
+    diasActivos: Object.keys(dias).length,
+    promedioDia: mgTotal / span,
+    promedioDiaOtro: mgOtro / span,
+    // cuanto mas (o menos) que el otro, en mg/dia
+    vs: mgOtro > 0 ? (mgTotal / mgOtro - 1) * 100 : null
+  };
+}
+
+/* ---------- pintar ---------- */
+const hhmm = h => String(Math.floor(h)).padStart(2, '0') + ':' +
+                  String(Math.round((h % 1) * 60)).padStart(2, '0');
 
 function render() {
+  const s = stats(rows, me);
+  const hoy = dayKey(new Date());
   const mine = r => r.email === me;
-  // ponytail: "el otro" = todo lo que no es mio. Sirve para dos, no para tres.
-  const today = dayKey(new Date());
-  const sum = rs => rs.reduce((n, r) => n + r.mg, 0);
 
   /* hoy */
-  const hoy = rows.filter(r => dayKey(new Date(r.at)) === today);
-  const [a, b] = [hoy.filter(mine), hoy.filter(r => !mine(r))];
-  const other = rows.find(r => !mine(r));
-  $('today').innerHTML = `
-    <div><b>${sum(a)}</b><span>mg · ${a.length} parche${a.length === 1 ? '' : 's'} · vos</span></div>
-    <div><b>${sum(b)}</b><span>mg · ${b.length} parche${b.length === 1 ? '' : 's'} · ${
-      other ? nameOf(other.email) : 'nadie más'}</span></div>`;
+  $('today').innerHTML =
+    card(`${s.mgHoy}<small> mg</small>`,
+         `${s.countHoy} SIUP${s.countHoy === 1 ? '' : 's'} · vos`, 'hl') +
+    card(`${s.mgHoyOtro}<small> mg</small>`,
+         `${s.countHoyOtro} SIUP${s.countHoyOtro === 1 ? '' : 's'} · ${s.nombreOtro || 'nadie más'}`) +
+    (s.desvio === null ? '' : card(
+      `${s.desvio.toFixed(1)}×`,
+      s.desvio >= 1.4 ? `bastante más que tu promedio de ${Math.round(s.media)} mg`
+      : s.desvio <= .75 ? `por debajo de tu promedio de ${Math.round(s.media)} mg`
+      : `en línea con tu promedio de ${Math.round(s.media)} mg`, 'wide')) +
+    (s.arranqueHoy ? card(
+      new Date(s.arranqueHoy).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      s.arranqueMedio ? `primer SIUP de hoy · solés arrancar ${hhmm(s.arranqueMedio)}`
+                      : 'primer SIUP de hoy', 'wide') : '');
 
-  /* grafico: 14 dias */
-  const days = [...Array(14)].map((_, i) => {
+  /* 14 dias */
+  const dias14 = [...Array(14)].map((_, i) => {
     const d = new Date(); d.setDate(d.getDate() - 13 + i);
     const rs = rows.filter(r => dayKey(new Date(r.at)) === dayKey(d));
     return { d, m: sum(rs.filter(mine)), t: sum(rs.filter(r => !mine(r))) };
   });
-  const max = Math.max(1, ...days.map(x => Math.max(x.m, x.t)));
-  $('chart').innerHTML = days.map(x => `<div title="${dayKey(x.d)}: ${x.m} / ${x.t} mg">
-      <i class="m" style="height:${x.m / max * 100}%"></i>
-      <i class="t" style="height:${x.t / max * 100}%"></i></div>`).join('');
-  $('days').innerHTML = `<span>${days[0].d.getDate()}/${days[0].d.getMonth() + 1}</span><span>hoy</span>`;
-  $('key').innerHTML = `<s style="background:var(--mine)"></s> vos &nbsp;
-    <s style="background:var(--theirs)"></s> ${other ? nameOf(other.email) : 'el otro'}
-    &nbsp;·&nbsp; pico ${max} mg`;
+  const max = Math.max(1, ...dias14.map(x => Math.max(x.m, x.t)));
+  $('chart').innerHTML = dias14.map(x =>
+    `<div title="${dayKey(x.d)}: ${x.m} / ${x.t} mg">
+       <i class="m" style="height:${x.m / max * 100}%"></i>
+       <i class="t" style="height:${x.t / max * 100}%"></i></div>`).join('');
+  $('days').innerHTML =
+    `<span>${dias14[0].d.getDate()}/${dias14[0].d.getMonth() + 1}</span><span>hoy</span>`;
+  $('chartkey').innerHTML =
+    `<span><s style="background:var(--mine)"></s>vos</span>` +
+    `<span><s style="background:var(--theirs)"></s>${s.nombreOtro || 'el otro'}</span>` +
+    `<span>pico ${max} mg</span>`;
 
-  /* tabla */
+  /* horario 0-23 */
+  const hmax = Math.max(1, ...s.horas);
+  $('hours').innerHTML = s.horas.map((n, h) =>
+    `<i style="height:${n / hmax * 100}%" title="${h}:00 · ${n} SIUPs"></i>`).join('');
+  $('hoursaxis').innerHTML = [0, 6, 12, 18, 23].map(h => `<span>${h}</span>`).join('');
+  $('hourskey').innerHTML = s.count
+    ? `<span>tu horario pico: <b style="color:var(--fg)">${s.favorita}:00</b></span>`
+    : `<span>sin datos todavía</span>`;
+
+  /* historial */
+  $('stats').innerHTML =
+    card(`${s.mgTotal.toLocaleString('es-AR')}<small> mg</small>`,
+         `en total · ${s.count} SIUPs`, 'hl') +
+    card(plata(s.gastado), `gastado · ${plata(PRECIO.pesos / PRECIO.cada)} c/u`) +
+    card(Math.round(s.puchos).toLocaleString('es-AR'),
+         'cigarrillos equivalentes (estimado)', 'wide') +
+    (s.record ? card(`${s.record.mg}<small> mg</small>`,
+         `tu récord · ${new Date(s.record.dia + 'T12:00').toLocaleDateString('es-AR',
+           { day: 'numeric', month: 'long' })}`) : '') +
+    card(`${s.promedioDia.toFixed(1)}<small> mg</small>`, 'por día, promedio') +
+    (s.vs === null ? '' : card(
+      `${s.vs > 0 ? '+' : ''}${Math.round(s.vs)}%`,
+      s.vs > 0 ? `más adicto que ${s.nombreOtro}` : `menos adicto que ${s.nombreOtro}`,
+      'wide ' + (s.vs > 0 ? '' : 'hl')));
+
+  /* registros */
   const undoable = rows.find(r =>
     mine(r) && r.id !== 'temp' && Date.now() - new Date(r.at) < UNDO_MS);
 
-  $('log').innerHTML = rows.slice(0, 40).map(r => {
+  $('log').innerHTML = rows.slice(0, 30).map(r => {
     const d = new Date(r.at);
-    const when = dayKey(d) === today
+    const when = dayKey(d) === hoy
       ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       : d.toLocaleDateString([], { day: 'numeric', month: 'short' });
     return `<tr>
@@ -234,46 +357,77 @@ function render() {
       <td>${r.brand} · ${r.mg} mg</td>
       <td>${r === undoable ? '<button class="undo">deshacer</button>' : ''}</td>
     </tr>`;
-  }).join('') || '<tr><td class="empty">Todavía nada.</td></tr>';
+  }).join('') || '<tr><td class="empty">Todavía ningún SIUP.</td></tr>';
 
   const btn = $('log').querySelector('.undo');
   if (btn) btn.onclick = () => undo(undoable);
+
+  $('foot').textContent =
+    `Cigarrillos equivalentes: ${CIG.absorcion * 100}% del mg impreso se absorbe, ` +
+    `${CIG.porPucho} mg por pucho. Estimación gruesa, no dato médico. ` +
+    `Precio: ${PRECIO.cada} SIUPs = ${plata(PRECIO.pesos)}.`;
 }
 
-/* ponytail: check sin login. Consola -> demo(). Datos falsos, no toca la base. */
-window.demo = () => {
-  me = 'lautaroppaniagua@gmail.com';
-  const now = Date.now();
-  rows = [...Array(40)].map((_, i) => ({
-    id: i,
-    email: i % 3 === 1 ? 'roberto@gmail.com' : me,   // i=0 mio y reciente: ejercita deshacer
-    brand: i % 2 ? 'zyn' : 'velo',
-    mg: [3, 4, 6][i % 3],
-    at: new Date(now - i * 5.5 * 3600e3).toISOString()
-  })).sort((a, b) => b.at.localeCompare(a.at));
-
-  $('gate').hidden = true; $('app').hidden = false;
-  $('me').textContent = nameOf(me);
-  render();
-
-  console.assert(/^\d{4}-\d{2}-\d{2}$/.test(dayKey(new Date())), 'dayKey no da YYYY-MM-DD');
-  console.assert($('chart').children.length === 14, 'el grafico no tiene 14 dias');
-  console.assert($('log').rows.length === 40, 'la tabla no lista los registros');
-  console.assert($('today').querySelectorAll('b').length === 2, 'faltan totales de hoy');
-  console.assert(!!$('log').querySelector('.undo'), 'no aparece deshacer en el ultimo mio');
-  return 'ok';
-};
-
-/* botonera: 2 marcas x 3 miligramajes */
-$('pad').innerHTML = BRANDS.flatMap(brand =>
-  MGS.map(mg => `<button data-b="${brand}" data-m="${mg}">
-    <small>${brand}</small><b>${mg}</b></button>`)).join('');
+/* ---------- botonera ---------- */
+$('pad').innerHTML = BRANDS.flatMap(b =>
+  MGS.map(mg => `<button data-b="${b}" data-m="${mg}">
+    <small>${b}</small><b>${mg}</b></button>`)).join('');
 
 $('pad').onclick = async e => {
   const el = e.target.closest('button');
   if (!el) return;
-  $('pad').querySelectorAll('button').forEach(b => b.disabled = true);
+  const bs = $('pad').querySelectorAll('button');
+  bs.forEach(b => b.disabled = true);
   await add(el.dataset.b, +el.dataset.m);
-  $('pad').querySelectorAll('button').forEach(b => b.disabled = false);
+  bs.forEach(b => b.disabled = false);
+};
+
+/* ---------- ponytail: check sin login. Consola -> demo(). No toca la base. ---------- */
+window.demo = () => {
+  me = 'lautaroppaniagua@gmail.com';
+  const now = Date.now();
+  let n = 0;
+  rows = [];
+  for (let d = 0; d < 60; d++) {            // 60 dias hacia atras
+    const cuantos = d === 0 ? 3 : 2 + (d * 7) % 5;
+    for (let i = 0; i < cuantos; i++) {
+      const hora = 9 + (i * 3 + d) % 12;    // concentrado en horario laboral
+      const at = new Date(now - d * 864e5);
+      at.setHours(hora, (i * 17) % 60, 0, 0);
+      if (at > now) continue;
+      rows.push({
+        id: n, email: n % 3 === 1 ? 'roberto@gmail.com' : me,
+        brand: n % 2 ? 'zyn' : 'velo', mg: [3, 4, 6][n % 3],
+        at: at.toISOString()
+      });
+      n++;
+    }
+  }
+  rows.sort((a, b) => b.at.localeCompare(a.at));
+  $('gate').hidden = true; $('app').hidden = false;
+  $('me').textContent = nameOf(me);
+  render();
+
+  const s = stats(rows, me);
+  const A = (c, m) => console.assert(c, m);
+  A(/^\d{4}-\d{2}-\d{2}$/.test(dayKey(new Date())), 'dayKey no da YYYY-MM-DD local');
+  A(s.mgTotal === sum(rows.filter(r => r.email === me)), 'mgTotal no cierra');
+  A(s.gastado === s.count * 440, 'plata mal: 6600/15 = 440 por SIUP');
+  A(Math.abs(s.puchos - s.mgTotal * 0.5 / 1.2) < 1e-6, 'equivalencia de puchos mal');
+  A(s.horas.length === 24 && s.horas.reduce((a, b) => a + b) === s.count,
+    'el histograma de horas no suma los SIUPs');
+  A(s.record && s.record.mg >= s.mgHoy, 'el record no puede ser menor que hoy');
+  A(s.favorita >= 0 && s.favorita <= 23, 'hora pico fuera de rango');
+  A(s.arranqueHoy !== null, 'falta el primer SIUP de hoy');
+  A(s.vs !== null && s.hayOtro, 'no se calculo la comparativa');
+  A($('chart').children.length === 14, 'el grafico no tiene 14 dias');
+  A($('hours').children.length === 24, 'el histograma no tiene 24 horas');
+  A(!!$('log').querySelector('.undo'), 'no aparece deshacer');
+  A(document.documentElement.scrollWidth <= window.innerWidth, 'la pagina scrollea horizontal');
+  // se usa con el pulgar: nada clickeable por debajo de 44px de alto
+  const chico = [...document.querySelectorAll('button')]
+    .filter(b => b.offsetParent && b.getBoundingClientRect().height < 44);
+  A(!chico.length, 'boton mas chico que 44px: ' + chico.map(b => b.className || b.id));
+  return 'ok';
 };
 </script>
